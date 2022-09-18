@@ -8,6 +8,9 @@ module.exports = {
     "eslint:recommended",
     "@vue/eslint-config-typescript/recommended"
   ],
+  "rules": {
+    "no-undef": "off"
+  },
   "overrides": [
     {
       "files": [
