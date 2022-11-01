@@ -5,7 +5,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { geoserverREST } from '@/api/geoserver';
 
-const geoserverUrl = import.meta.env.GEOSERVER_URL;
+const geoserverUrl = import.meta.env.VITE_GEOSERVER_URL;
 const rasterWMS = geoserverUrl + 'geoserver/raster/wms';
 const vectorWMS = geoserverUrl + 'geoserver/vector/wms';
 
@@ -82,8 +82,10 @@ export const useMapStore = defineStore('map', () => {
     const featureTypes = await Promise.all(
       geoserverWorkspaces.map(workspace => geoserverREST.GetFeatureTypesInWorkspace(workspace))).then(results => results.flat()
     );
+    console.log(featureTypes)
     const featureTypeNames = featureTypes.map(ft => ft.name);
     const featureTypeInfos = await Promise.all(featureTypeNames.map(name => geoserverREST.GetFeatureType('vector', name)));
+    console.log(featureTypeInfos)
 
     const layersConfig = featureTypeInfos.map(info => ({
       layers: info.name,
