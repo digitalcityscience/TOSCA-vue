@@ -63,16 +63,17 @@ export const useMapStore = defineStore('map', () => {
       return;
     }
 
-    const overlayMaps: { [key: string]: L.Layer } = {};
+    const overlayMaps: { [workspace: string]: { [layerName: string]: L.LayerGroup } } = {}
 
     for (const workspace of geoserverWorkspaces) {
+      overlayMaps[workspace] =  {}
+
       // Raster layers
       const wmsLayers = await geoserverREST.GetWmsLayers(workspace);
 
       for (const wmsLayer of wmsLayers) {
         const wmsLayerInfo = await geoserverREST.GetWmsLayer(workspace, wmsLayer.name);
-
-        overlayMaps[wmsLayerInfo.title] = L.tileLayer.wms(
+        const layer = L.tileLayer.wms(
           getWmsBaseUrl(workspace),
           {
             layers: wmsLayerInfo.name,
@@ -82,6 +83,7 @@ export const useMapStore = defineStore('map', () => {
             minZoom: 1
           }
         );
+        overlayMaps[workspace][wmsLayerInfo.title] = L.layerGroup([layer])
       }
 
       // Vector layers
@@ -89,8 +91,7 @@ export const useMapStore = defineStore('map', () => {
 
       for (const featureType of featureTypes) {
         const featureTypeInfo = await geoserverREST.GetFeatureType(workspace, featureType.name);
-
-        overlayMaps[featureTypeInfo.title] = L.tileLayer.wms(
+        const layer = L.tileLayer.wms(
           getWmsBaseUrl(workspace),
           {
             layers: featureTypeInfo.name,
@@ -100,10 +101,11 @@ export const useMapStore = defineStore('map', () => {
             minZoom: 1
           }
         );
+        overlayMaps[workspace][featureTypeInfo.title] = L.layerGroup([layer])
       }
     }
 
-    L.control.layers(baseLayers, overlayMaps).addTo(map.value);
+    L.control.groupedLayers(baseLayers, overlayMaps, { position: 'topright', collapsed: false }).addTo(map.value);
   };
 
   const getWmsBaseUrl = (workspace: string) => {
