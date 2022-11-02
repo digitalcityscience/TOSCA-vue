@@ -1,29 +1,28 @@
-import L from 'leaflet'
-import 'leaflet-draw'
-import 'leaflet-groupedlayercontrol'
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import L from 'leaflet';
+import 'leaflet-draw';
+import 'leaflet-groupedlayercontrol';
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
 import { geoserverREST } from '@/api/geoserver';
-
-const geoserverUrl = import.meta.env.VITE_GEOSERVER_URL;
-const rasterWMS = geoserverUrl + 'geoserver/raster/wms';
-const vectorWMS = geoserverUrl + 'geoserver/vector/wms';
+import { useGlobalStore } from './global';
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-})
+});
 const hot = L.tileLayer('https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; Humanitarian map style by <a href="https://www.hotosm.org/">HOT</a>'
-})
+});
 
 const baseLayers = {
   'OSM Standard style': osm,
   'OSM Humanitarian style': hot
-}
+};
 
-const geoserverWorkspaces = ['vector'];
+const geoserverWorkspaces = ['raster', 'vector'];
 
 export const useMapStore = defineStore('map', () => {
+  const globalStore = useGlobalStore();
+
   const map = ref<L.Map>();
   const drawings = ref<L.FeatureGroup>();
 
@@ -58,19 +57,6 @@ export const useMapStore = defineStore('map', () => {
     hot.addTo(map.value);
   };
 
-  /**
-   * Create WMS service based on layer config
-   */
-  const createWms = (layer: L.WMSOptions & { type: string; }) => {
-    if (layer.type === 'vector') {
-      return L.tileLayer.wms(vectorWMS, layer);
-    }
-    if (layer.type === 'raster') {
-      return L.tileLayer.wms(rasterWMS, layer);
-    }
-    throw new Error('Invalid layer type');
-  }
-
   const initializeLayers = async () => {
     if (!map.value) {
       console.error('Failed to initialize map layers: map is not defined');
@@ -79,30 +65,50 @@ export const useMapStore = defineStore('map', () => {
 
     const overlayMaps: { [key: string]: L.Layer } = {};
 
-    const featureTypes = await Promise.all(
-      geoserverWorkspaces.map(workspace => geoserverREST.GetFeatureTypesInWorkspace(workspace))).then(results => results.flat()
-    );
-    console.log(featureTypes)
-    const featureTypeNames = featureTypes.map(ft => ft.name);
-    const featureTypeInfos = await Promise.all(featureTypeNames.map(name => geoserverREST.GetFeatureType('vector', name)));
-    console.log(featureTypeInfos)
+    for (const workspace of geoserverWorkspaces) {
+      // Raster layers
+      const wmsLayers = await geoserverREST.GetWmsLayers(workspace);
 
-    const layersConfig = featureTypeInfos.map(info => ({
-      layers: info.name,
-      format: 'image/png',
-      transparent: true,
-      maxZoom: 20,
-      minZoom: 1,
-      title: info.title,
-      type: 'vector', // TODO: get resource type (vector/raster) from geoserver API
-    }));
+      for (const wmsLayer of wmsLayers) {
+        const wmsLayerInfo = await geoserverREST.GetWmsLayer(workspace, wmsLayer.name);
 
-    for (const layer of layersConfig) {
-      overlayMaps[layer.title] = createWms(layer);
+        overlayMaps[wmsLayerInfo.title] = L.tileLayer.wms(
+          getWmsBaseUrl(workspace),
+          {
+            layers: wmsLayerInfo.name,
+            format: 'image/png',
+            transparent: true,
+            maxZoom: 20,
+            minZoom: 1
+          }
+        );
+      }
+
+      // Vector layers
+      const featureTypes = await geoserverREST.GetFeatureTypes(workspace);
+
+      for (const featureType of featureTypes) {
+        const featureTypeInfo = await geoserverREST.GetFeatureType(workspace, featureType.name);
+
+        overlayMaps[featureTypeInfo.title] = L.tileLayer.wms(
+          getWmsBaseUrl(workspace),
+          {
+            layers: featureTypeInfo.name,
+            format: 'image/png',
+            transparent: true,
+            maxZoom: 20,
+            minZoom: 1
+          }
+        );
+      }
     }
 
     L.control.layers(baseLayers, overlayMaps).addTo(map.value);
   };
+
+  const getWmsBaseUrl = (workspace: string) => {
+    return `${globalStore.geoserverUrl}${workspace}/wms`;
+  }
 
   return {
     map,
