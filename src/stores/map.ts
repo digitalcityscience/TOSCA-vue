@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import 'leaflet-draw';
 import 'leaflet-groupedlayercontrol';
+import '@/leaflet-plugins/leaflet.legend';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { geoserverREST } from '@/api/geoserver';
@@ -25,9 +26,28 @@ export const useMapStore = defineStore('map', () => {
 
   const map = ref<L.Map>();
   const drawings = ref<L.FeatureGroup>();
+  const legend = ref<L.Control.Legend>();
 
   const initializeMap = (containerId: string, options: L.MapOptions) => {
     map.value = new L.Map(containerId, options);
+
+    /* Map legend */
+    legend.value = L.control.legend({ position: 'bottomleft' });
+    legend.value.addTo(map.value);
+
+    map.value.on('overlayadd', (event: any) => {
+      if (event.layer._layers) {
+        const layer = Object.values(event.layer._layers)[0]
+        legend.value?.toggleLegendForLayer(layer as L.TileLayer.WMS, true, event.name);
+      }
+    });
+
+    map.value.on('overlayremove', (event: any) => {
+      if (event.layer._layers) {
+        const layer = Object.values(event.layer._layers)[0]
+        legend.value?.toggleLegendForLayer(layer as L.TileLayer.WMS, false);
+      }
+    });
 
     /* Drawing tool */
     drawings.value = L.featureGroup().addTo(map.value);
