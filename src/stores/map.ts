@@ -2,6 +2,7 @@ import L from 'leaflet';
 import 'leaflet-draw';
 import 'leaflet-groupedlayercontrol';
 import '@/leaflet-plugins/leaflet.legend';
+import '@/leaflet-plugins/leaflet.getfeatureinfo';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { geoserverREST } from '@/api/geoserver';
